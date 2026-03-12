@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CIFER — Secure File Encryption</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css"/>
+<style>
+/* ══════════════════════════════════════════════
+   RESET & DESIGN TOKENS
+══════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#040810;--bg2:#060c18;--bg3:#08111f;
+  --teal:#14b8a6;--blue:#3b82f6;--indigo:#6366f1;--emerald:#10b981;--violet:#a78bfa;
+  --text:#dbeafe;--muted:rgba(148,196,255,0.5);
+  --card:rgba(255,255,255,0.025);--border:rgba(100,160,255,0.1);--border-h:rgba(20,184,166,0.4);
+  --font:'DM Sans',sans-serif;--mono:'IBM Plex Mono',monospace;
+  /* Legacy tokens that assets/css/style.css or main.js may use */
+  --b1:#14b8a6;--b3:#e1ad01;
+  --fh:'IBM Plex Mono',monospace;--fb:'DM Sans',sans-serif;
+  --r:14px;--tr:.3s;
+  --panel:rgba(255,255,255,0.025);--panel-b:rgba(100,160,255,0.1);
+  --text-m:rgba(148,196,255,0.5);
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+/* hide legacy liquid-bg blobs – we use canvas instead */
+.liquid-bg{display:none!important}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--teal);border-radius:2px}
+
+/* ══════════════════════════════════════════════
+   ANIMATED BACKGROUND CANVAS
+══════════════════════════════════════════════ */
+#bg-canvas{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.45}
+
+/* ══════════════════════════════════════════════
+   NAVBAR  (replaces old .navbar styles)
+══════════════════════════════════════════════ */
+.navbar{
+  position:fixed;top:0;left:0;right:0;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 60px;height:66px;
+  background:rgba(4,8,16,0.55);
+  backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:1px solid var(--border);
+  transition:background .4s,border-color .4s;
+}
+.navbar.scrolled{background:rgba(4,8,16,0.9);border-color:rgba(20,184,166,0.2)}
+.nav-logo a{
+  font-family:var(--mono);font-size:1.4rem;font-weight:500;letter-spacing:.18em;
+  background:linear-gradient(90deg,#fff,var(--teal));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 10px rgba(20,184,166,0.4));
+  animation:lglow 4s ease-in-out infinite;
+  text-decoration:none;
+}
+@keyframes lglow{0%,100%{filter:drop-shadow(0 0 10px rgba(20,184,166,0.3))}50%{filter:drop-shadow(0 0 20px rgba(20,184,166,0.65))}}
+.nav-right{display:flex;gap:.75rem;align-items:center;margin-left:auto}
+/* nav auth buttons */
+.btn.btn-outline.btn-sm{
+  font-family:var(--font);font-size:.78rem;font-weight:600;letter-spacing:.04em;
+  padding:9px 22px;border-radius:8px;cursor:pointer;
+  background:transparent;border:1px solid rgba(20,184,166,0.35);color:#5eead4;
+  transition:all .3s;
+}
+.btn.btn-outline.btn-sm:hover{background:rgba(20,184,166,0.1);border-color:rgba(20,184,166,0.7);box-shadow:0 0 18px rgba(20,184,166,0.25);transform:translateY(-1px)}
+.btn.btn-primary.btn-sm{
+  font-family:var(--font);font-size:.78rem;font-weight:600;letter-spacing:.04em;
+  padding:9px 22px;border-radius:8px;cursor:pointer;
+  background:linear-gradient(135deg,var(--teal),var(--blue));border:none;color:#fff;
+  box-shadow:0 3px 16px rgba(20,184,166,0.3);transition:all .3s;
+}
+.btn.btn-primary.btn-sm:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(20,184,166,0.45)}
+
+/* ══════════════════════════════════════════════
+   HERO
+══════════════════════════════════════════════ */
+#hero{
+  position:relative;z-index:2;min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:80px 24px 60px;overflow:hidden;
+}
+.orb{position:absolute;border-radius:50%;filter:blur(90px);pointer-events:none;animation:orb var(--d,14s) ease-in-out infinite var(--dl,0s)}
+.o1{width:600px;height:600px;background:rgba(20,184,166,0.06);top:-150px;left:-200px;--d:16s}
+.o2{width:400px;height:400px;background:rgba(99,102,241,0.06);top:5%;right:-100px;--d:20s;--dl:3s}
+.o3{width:300px;height:300px;background:rgba(16,185,129,0.05);bottom:5%;left:10%;--d:18s;--dl:6s}
+@keyframes orb{0%,100%{transform:translate(0,0)scale(1)}40%{transform:translate(25px,-18px)scale(1.04)}70%{transform:translate(-15px,12px)scale(.97)}}
+
+.hero-chip{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:.68rem;letter-spacing:.15em;color:var(--teal);
+  background:rgba(20,184,166,0.07);border:1px solid rgba(20,184,166,0.2);border-radius:100px;
+  padding:6px 18px;margin-bottom:36px;opacity:0;animation:fup .7s .3s forwards;
+}
+.cdot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 8px var(--teal);animation:bl 2s ease-in-out infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.3}}
+.hero-h1{font-size:clamp(2.8rem,7vw,5.8rem);font-weight:700;line-height:1.04;letter-spacing:-.025em;margin-bottom:28px;opacity:0;animation:fup .7s .5s forwards}
+.hero-h1 .g{background:linear-gradient(95deg,var(--teal),var(--blue),var(--indigo));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;display:inline-block}
+.hero-sub{font-size:clamp(.95rem,2vw,1.1rem);font-weight:300;color:var(--muted);max-width:520px;line-height:1.85;margin-bottom:48px;opacity:0;animation:fup .7s .7s forwards}
+.hero-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;opacity:0;animation:fup .7s .9s forwards}
+.btn-p{font-family:var(--font);font-size:.9rem;font-weight:600;padding:14px 38px;border-radius:10px;cursor:pointer;border:none;color:#fff;background:linear-gradient(135deg,var(--teal),var(--blue));box-shadow:0 4px 28px rgba(20,184,166,0.35);transition:all .3s;position:relative;overflow:hidden}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 8px 44px rgba(20,184,166,0.5)}
+.btn-o{font-family:var(--font);font-size:.9rem;font-weight:500;padding:14px 38px;border-radius:10px;cursor:pointer;background:transparent;border:1px solid rgba(100,160,255,0.3);color:var(--text);transition:all .3s}
+.btn-o:hover{background:rgba(255,255,255,0.04);border-color:rgba(20,184,166,0.5);transform:translateY(-2px)}
+.hf{position:absolute;background:rgba(255,255,255,0.025);border:1px solid rgba(100,160,255,0.1);backdrop-filter:blur(8px);border-radius:10px;padding:10px 16px;font-family:var(--mono);font-size:.62rem;color:rgba(130,190,255,0.5);animation:fi var(--d,7s) ease-in-out infinite var(--dl,0s);pointer-events:none}
+.hf1{top:20%;left:3%;--d:8s;--dl:0s}.hf2{top:28%;right:3%;--d:9s;--dl:1.5s}.hf3{bottom:28%;left:5%;--d:7s;--dl:3s}.hf4{bottom:22%;right:4%;--d:10s;--dl:0.8s}
+@keyframes fi{0%,100%{transform:translateY(0)}50%{transform:translateY(-13px)}}
+.scroll-c{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;opacity:0;animation:fup .6s 1.4s forwards}
+.scl span{font-size:.58rem;letter-spacing:.25em;color:var(--muted);text-transform:uppercase}
+.mouse{width:20px;height:32px;border-radius:10px;border:1px solid rgba(100,160,255,0.3);display:flex;justify-content:center;padding-top:5px}
+.wheel{width:2px;height:6px;border-radius:2px;background:var(--teal);animation:sd 1.8s ease-in-out infinite}
+@keyframes sd{0%{transform:translateY(0);opacity:1}100%{transform:translateY(10px);opacity:0}}
+@keyframes fup{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+/* ══════════════════════════════════════════════
+   NETWORK OVERVIEW
+══════════════════════════════════════════════ */
+#overview{position:relative;z-index:2;padding:120px 60px;overflow:hidden}
+.ov-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.ov-text .tag{font-family:var(--mono);font-size:.65rem;letter-spacing:.22em;color:var(--teal);text-transform:uppercase;margin-bottom:16px}
+.sh2{font-size:clamp(1.8rem,3.5vw,2.8rem);font-weight:700;line-height:1.1;letter-spacing:-.02em;margin-bottom:20px}
+.sh2 em{font-style:normal;color:var(--teal)}
+.sbody{font-size:1rem;font-weight:300;color:var(--muted);line-height:1.85;margin-bottom:14px}
+#net-canvas{width:100%;height:380px;border-radius:16px;border:1px solid var(--border);background:rgba(255,255,255,0.015)}
+
+/* ══════════════════════════════════════════════
+   FEATURES
+══════════════════════════════════════════════ */
+#features{position:relative;z-index:2;padding:120px 60px;background:linear-gradient(180deg,transparent,rgba(20,184,166,0.015),transparent)}
+.feat-wrap{max-width:1200px;margin:0 auto}
+.sec-hdr{text-align:center;margin-bottom:72px}
+.sec-hdr .tag{font-family:var(--mono);font-size:.65rem;letter-spacing:.22em;color:var(--teal);text-transform:uppercase;margin-bottom:16px}
+.sec-hdr p{font-weight:300;color:var(--muted);max-width:440px;margin:.5rem auto 0;line-height:1.75}
+.feat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.fc{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:36px;position:relative;overflow:hidden;transition:all .4s cubic-bezier(.25,.46,.45,.94);opacity:0;transform:translateY(22px)}
+.fc.v{opacity:1;transform:translateY(0);transition:opacity .6s,transform .6s,box-shadow .4s,border-color .4s}
+.fc::before{content:'';position:absolute;inset:0;border-radius:14px;background:radial-gradient(circle at var(--mx,50%) var(--my,50%),rgba(20,184,166,0.07),transparent 55%);opacity:0;transition:opacity .4s}
+.fc:hover{border-color:var(--border-h);background:rgba(255,255,255,0.04);transform:translateY(-7px)!important;box-shadow:0 24px 60px rgba(0,0,0,0.45),0 0 40px rgba(20,184,166,0.07)}
+.fc:hover::before{opacity:1}
+.fc.wide{grid-column:span 2;display:grid;grid-template-columns:1.2fr 1fr;gap:48px;align-items:center}
+.fi{width:48px;height:48px;border-radius:10px;background:rgba(20,184,166,0.1);border:1px solid rgba(20,184,166,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:20px;transition:all .3s}
+.fc:hover .fi{background:rgba(20,184,166,0.2);border-color:rgba(20,184,166,0.5);box-shadow:0 0 18px rgba(20,184,166,0.25)}
+.fi svg{width:22px;height:22px}
+.fn{font-family:var(--mono);font-size:.6rem;letter-spacing:.15em;color:rgba(20,184,166,0.5);margin-bottom:8px}
+.ft{font-size:1.05rem;font-weight:700;margin-bottom:10px;letter-spacing:-.01em}
+.fd{font-size:.88rem;font-weight:300;color:var(--muted);line-height:1.75}
+.fc-canvas{width:100%;height:180px;border-radius:10px;border:1px solid rgba(20,184,166,0.1);background:rgba(255,255,255,0.02)}
+
+/* ══════════════════════════════════════════════
+   HOW IT WORKS
+══════════════════════════════════════════════ */
+#how{position:relative;z-index:2;padding:120px 60px;max-width:1200px;margin:0 auto}
+.how-hdr{text-align:center;margin-bottom:80px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative}
+.steps::before{content:'';position:absolute;top:40px;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,rgba(20,184,166,0.4),rgba(99,102,241,0.4),transparent)}
+.step{display:flex;flex-direction:column;align-items:center;text-align:center;padding:0 12px;opacity:0;transform:translateY(20px)}
+.snum{width:80px;height:80px;border-radius:50%;background:var(--bg2);border:1px solid rgba(20,184,166,0.25);display:flex;align-items:center;justify-content:center;margin-bottom:20px;position:relative;z-index:1;transition:all .4s}
+.step:hover .snum{border-color:var(--teal);box-shadow:0 0 28px rgba(20,184,166,0.3);background:rgba(20,184,166,0.07)}
+.snum svg{width:26px;height:26px;color:var(--teal)}
+.slbl{font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;color:var(--teal);margin-bottom:10px}
+.stit{font-size:.95rem;font-weight:700;margin-bottom:8px}
+.sdesc{font-size:.82rem;font-weight:300;color:var(--muted);line-height:1.7}
+
+/* ══════════════════════════════════════════════
+   DATA VIS
+══════════════════════════════════════════════ */
+#datavis{position:relative;z-index:2;padding:120px 60px;text-align:center;overflow:hidden}
+#dv-canvas{width:100%;max-width:1000px;height:420px;margin:60px auto 0;display:block;border-radius:16px;border:1px solid var(--border);background:rgba(255,255,255,0.015)}
+
+/* ══════════════════════════════════════════════
+   PIPELINE
+══════════════════════════════════════════════ */
+#pipeline{position:relative;z-index:2;padding:120px 60px;max-width:1100px;margin:0 auto}
+.pl-hdr{text-align:center;margin-bottom:72px}
+.pl-stages{display:flex;align-items:stretch;gap:0;position:relative}
+.pl-stage{flex:1;background:var(--card);border:1px solid var(--border);padding:32px 24px;position:relative;cursor:pointer;transition:all .35s}
+.pl-stage:first-child{border-radius:14px 0 0 14px}.pl-stage:last-child{border-radius:0 14px 14px 0}
+.pl-stage:not(:last-child)::after{content:'';position:absolute;top:50%;right:-1px;transform:translateY(-50%);width:0;height:0;border-top:12px solid transparent;border-bottom:12px solid transparent;border-left:14px solid var(--border);z-index:2;transition:border-left-color .3s}
+.pl-stage:hover{background:rgba(20,184,166,0.06);border-color:rgba(20,184,166,0.35);transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,0.4),0 0 30px rgba(20,184,166,0.06)}
+.pl-stage:hover::after{border-left-color:rgba(20,184,166,0.35)!important}
+.pl-icon{width:44px;height:44px;border-radius:10px;background:rgba(20,184,166,0.08);border:1px solid rgba(20,184,166,0.18);display:flex;align-items:center;justify-content:center;margin-bottom:14px}
+.pl-icon svg{width:20px;height:20px;color:var(--teal)}
+.pl-n{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;color:rgba(20,184,166,0.5);margin-bottom:6px}
+.pl-t{font-size:.9rem;font-weight:700;margin-bottom:8px}
+.pl-d{font-size:.8rem;font-weight:300;color:var(--muted);line-height:1.6}
+.tooltip{display:none;position:absolute;bottom:calc(100% + 12px);left:50%;transform:translateX(-50%);background:rgba(4,8,16,0.95);border:1px solid rgba(20,184,166,0.35);border-radius:10px;padding:12px 16px;font-size:.75rem;color:var(--text);white-space:nowrap;pointer-events:none;z-index:50;backdrop-filter:blur(10px);box-shadow:0 8px 32px rgba(0,0,0,0.5)}
+.tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:rgba(20,184,166,0.35)}
+.pl-stage:hover .tooltip{display:block}
+
+/* ══════════════════════════════════════════════
+   GLOBE
+══════════════════════════════════════════════ */
+#globe-sec{position:relative;z-index:2;padding:120px 60px;text-align:center;overflow:hidden}
+#globe-canvas{width:100%;max-width:600px;height:500px;margin:0 auto;display:block}
+
+/* ══════════════════════════════════════════════
+   CTA
+══════════════════════════════════════════════ */
+#cta{position:relative;z-index:2;padding:140px 60px;text-align:center;overflow:hidden}
+#cta::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:750px;height:400px;background:radial-gradient(ellipse,rgba(20,184,166,0.06),rgba(99,102,241,0.04),transparent 65%);animation:cp 5s ease-in-out infinite;pointer-events:none}
+@keyframes cp{0%,100%{transform:translate(-50%,-50%)scale(1)}50%{transform:translate(-50%,-50%)scale(1.1)}}
+.cta-chip{font-family:var(--mono);font-size:.65rem;letter-spacing:.25em;color:var(--indigo);text-transform:uppercase;margin-bottom:24px}
+.cta-h2{font-size:clamp(2rem,5vw,4rem);font-weight:700;line-height:1.08;letter-spacing:-.025em;margin-bottom:20px}
+.cta-h2 span{background:linear-gradient(90deg,var(--teal),var(--indigo));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.cta-sub{font-size:1rem;color:var(--muted);margin-bottom:52px;font-weight:300}
+.cta-btn{font-family:var(--font);font-size:1rem;font-weight:600;padding:18px 56px;border-radius:12px;cursor:pointer;border:none;color:#fff;background:linear-gradient(135deg,var(--teal),var(--blue),var(--indigo));box-shadow:0 6px 32px rgba(20,184,166,0.4);transition:all .3s;position:relative;overflow:hidden;display:inline-flex;align-items:center;gap:10px}
+.cta-btn:hover{transform:translateY(-3px);box-shadow:0 12px 50px rgba(20,184,166,0.55)}
+.cta-btn svg{width:18px;height:18px;transition:transform .3s}
+.cta-btn:hover svg{transform:translateX(4px)}
+
+/* ══════════════════════════════════════════════
+   FOOTER
+══════════════════════════════════════════════ */
+.footer{position:relative;z-index:2;padding:48px 60px;border-top:1px solid var(--border);background:rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:20px;text-align:center}
+.footer::before{content:'';position:absolute;top:-1px;left:8%;right:8%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),var(--indigo),transparent);opacity:.45}
+.footer-logo{font-family:var(--mono);font-size:1.1rem;font-weight:500;letter-spacing:.18em;background:linear-gradient(90deg,var(--teal),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 6px rgba(20,184,166,0.3))}
+.footer-copy{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;color:rgba(148,196,255,0.3)}
+
+/* ══════════════════════════════════════════════
+   SECTION DIVIDER
+══════════════════════════════════════════════ */
+.div{height:1px;margin:0 60px;background:linear-gradient(90deg,transparent,rgba(20,184,166,0.12),rgba(99,102,241,0.1),transparent);position:relative;z-index:2}
+
+/* ══════════════════════════════════════════════
+   SCROLL REVEAL CLASSES
+══════════════════════════════════════════════ */
+.rv{opacity:0;transform:translateY(26px);transition:all .7s cubic-bezier(.25,.46,.45,.94)}
+.rv.u{opacity:1;transform:translateY(0)}
+.rvl{opacity:0;transform:translateX(-26px);transition:all .7s cubic-bezier(.25,.46,.45,.94)}
+.rvl.u{opacity:1;transform:translateX(0)}
+.rvr{opacity:0;transform:translateX(26px);transition:all .7s cubic-bezier(.25,.46,.45,.94)}
+.rvr.u{opacity:1;transform:translateX(0)}
+
+/* ══════════════════════════════════════════════
+   RIPPLE
+══════════════════════════════════════════════ */
+.rip{position:absolute;border-radius:50%;background:rgba(255,255,255,.25);transform:scale(0);animation:ri .65s linear;pointer-events:none}
+@keyframes ri{to{transform:scale(4);opacity:0}}
+
+/* ══════════════════════════════════════════════
+   AUTH MODAL  —  restyled to v3 palette, 
+   all backend wiring preserved exactly
+══════════════════════════════════════════════ */
+.auth-bg{
+  position:fixed;inset:0;background:rgba(4,8,16,0.78);z-index:9990;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(18px);
+  opacity:0;pointer-events:none;transition:opacity .4s ease;
+}
+.auth-bg.show{opacity:1;pointer-events:all}
+
+.auth-card{
+  background:rgba(6,12,24,0.88);
+  border:1px solid rgba(20,184,166,0.16);
+  border-radius:24px;padding:3rem 2.5rem;
+  width:100%;max-width:420px;
+  position:relative;
+  transform:translateY(30px);opacity:0;
+  transition:all .5s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 32px 72px rgba(0,0,0,0.72),inset 0 0 24px rgba(20,184,166,0.03);
+  backdrop-filter:blur(24px);
+}
+.auth-bg.show .auth-card{transform:translateY(0);opacity:1}
+/* noise texture */
+.auth-card::before{content:'';position:absolute;inset:0;border-radius:24px;background:url('data:image/svg+xml;utf8,<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23n)"/></svg>');opacity:.06;mix-blend-mode:overlay;pointer-events:none}
+/* glowing top accent */
+.auth-card::after{content:'';position:absolute;top:-1px;left:15%;right:15%;height:1px;background:linear-gradient(90deg,transparent,var(--teal),var(--indigo),transparent);opacity:.6;border-radius:24px}
+
+.auth-x{position:absolute;top:1.25rem;right:1.25rem;background:none;border:none;color:rgba(255,255,255,0.4);font-size:1.2rem;cursor:pointer;padding:.3rem;transition:color .2s;z-index:10}
+.auth-x:hover{color:#fff}
+
+.auth-logo{margin:0 auto 1rem;width:48px;height:48px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(20,184,166,0.5);border-radius:10px;transform:rotate(45deg);box-shadow:0 0 18px rgba(20,184,166,0.15)}
+.auth-logo::after{content:'';width:20px;height:10px;border:2px solid rgba(99,102,241,0.8);position:absolute;transform:rotate(-45deg);border-radius:3px}
+
+.auth-brand{text-align:center;font-family:var(--mono);font-size:1.15rem;font-weight:500;letter-spacing:.22em;color:#fff;margin-bottom:.4rem}
+.auth-sub{text-align:center;font-family:var(--font);font-size:1.3rem;font-weight:600;color:var(--text);margin-bottom:1.75rem;letter-spacing:-.01em}
+
+.glass-group{margin-bottom:1.1rem}
+.glass-group label{display:block;font-size:.82rem;color:rgba(200,220,255,0.7);margin-bottom:.4rem;font-family:var(--font)}
+.glass-input{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(100,160,255,0.2);border-radius:10px;padding:.85rem 1rem;color:#fff;font-family:var(--font);font-size:.9rem;transition:border-color .3s,background .3s}
+.glass-input:focus{outline:none;border-color:rgba(20,184,166,0.7);background:rgba(20,184,166,0.05);box-shadow:0 0 16px rgba(20,184,166,0.2)}
+
+/* OTP individual boxes */
+#auth-otp-inputs{display:flex;justify-content:space-between;margin-bottom:1.5rem}
+#auth-otp-inputs .glass-input{width:14%;text-align:center;padding:.8rem 0;font-size:1.2rem;font-family:var(--mono)}
+#auth-otp-inputs .glass-input.error{border-color:rgba(239,68,68,0.7);animation:shake .35s ease}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+.glass-btn{width:100%;background:linear-gradient(135deg,rgba(20,184,166,0.9),rgba(59,130,246,0.8));border:1px solid rgba(20,184,166,0.3);padding:.9rem;border-radius:10px;color:#fff;font-family:var(--font);font-size:.95rem;font-weight:600;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 8px 24px rgba(0,0,0,0.35);margin-top:.4rem}
+.glass-btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(0,0,0,0.45),0 0 22px rgba(20,184,166,0.3)}
+
+.auth-link{font-size:.82rem;color:rgba(255,255,255,0.5);cursor:pointer;text-decoration:none;transition:color .2s}
+.auth-link:hover{color:var(--teal)}
+.auth-footer{text-align:center;margin-top:1.75rem;font-size:.82rem;color:rgba(255,255,255,0.5)}
+.auth-footer span{color:var(--teal);font-weight:600;cursor:pointer;padding-left:.2rem;transition:all .2s}
+.auth-footer span:hover{text-shadow:0 0 10px rgba(20,184,166,0.5)}
+
+/* error / success alerts */
+.alert{padding:.65rem 1rem;border-radius:8px;font-size:.82rem;margin-bottom:.75rem}
+.alert-danger{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#fca5a5}
+.alert-success{background:rgba(20,184,166,0.12);border:1px solid rgba(20,184,166,0.3);color:#5eead4}
+
+/* toast container (used by main.js) */
+#toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════ */
+@media(max-width:960px){
+  .navbar{padding:0 24px}
+  #overview{padding:80px 24px}.ov-inner{grid-template-columns:1fr;gap:48px}
+  #features{padding:80px 24px}.feat-grid{grid-template-columns:1fr}.fc.wide{grid-column:span 1;grid-template-columns:1fr}
+  #how{padding:80px 24px}.steps{grid-template-columns:1fr 1fr}.steps::before{display:none}
+  #datavis,#globe-sec,#cta,#pipeline{padding:80px 24px}
+  .pl-stages{flex-direction:column}.pl-stage{border-radius:10px!important}.pl-stage::after{display:none}
+  .footer{padding:32px 24px}
+  .div{margin:0 24px}
+  .hf1,.hf2,.hf3,.hf4{display:none}
+}
+@media(max-width:600px){
+  .hero-btns{flex-direction:column;align-items:center}
+  .steps{grid-template-columns:1fr}
+  .auth-card{padding:2rem 1.25rem;margin:0 16px}
+}
+</style>
+</head>
+<body>
+
+  <div id="cur"></div>
+<div id="cring"></div>
+<div id="toast-container"></div>
+
+<!-- legacy liquid-bg kept in DOM (hidden) so style.css refs don't error -->
+<div class="liquid-bg"></div>
+
+<!-- animated background -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- ════════════════ NAVBAR ════════════════ -->
+<nav class="navbar" id="nav">
+  <div class="nav-logo"><a href="index.html">CIFER</a></div>
+  <div class="nav-right" id="nav-auth-btns">
+    <button class="btn btn-outline btn-sm" onclick="openAuth('login')">Login</button>
+    <button class="btn btn-primary btn-sm" onclick="openAuth('register')">Register</button>
+  </div>
+</nav>
+
+<!-- ════════════════ HERO ════════════════ -->
+<section id="hero">
+  <div class="orb o1"></div>
+  <div class="orb o2"></div>
+  <div class="orb o3"></div>
+
+  <div class="hero-chip"><span class="cdot"></span>Digital Security Platform</div>
+
+  <h1 class="hero-h1">
+    The Future of<br/>
+    <span class="g" id="ht">Data Protection</span>
+  </h1>
+
+  <p class="hero-sub">
+    CIFER combines AES-256 encryption with invisible steganography — securing your files behind a random nature image, verified with a Gmail OTP that only the right person can unlock.
+  </p>
+
+  <div class="hero-btns">
+    <button class="btn-p" onclick="openAuth('register');rip(event)">Get Protected Now</button>
+    <button class="btn-o" onclick="document.getElementById('overview').scrollIntoView({behavior:'smooth'})">See How It Works</button>
+  </div>
+
+  <div class="hf hf1">AES-256-CBC Active<br/>IV: [random 16-byte] ✓</div>
+  <div class="hf hf2">STEG ENGINE: v2.3<br/>Cover: 🌸 random nature</div>
+  <div class="hf hf3">01101000 01101001<br/>01110011 01110100</div>
+  <div class="hf hf4">SHA-256 · Verified<br/>OTP: [6-digit] hashed ✓</div>
+
+
+</section>
+
+<div class="div"></div>
+
+<!-- ════════════════ OVERVIEW + NETWORK ════════════════ -->
+<section id="overview">
+  <div class="ov-inner">
+    <div class="ov-text">
+      <p class="tag rv" data-d="0">// The Problem & Solution</p>
+      <h2 class="sh2 rv" data-d="80">Why <em>CIFER</em> exists</h2>
+      <p class="sbody rv" data-d="160">
+        Traditional file sharing is broken. Emails travel in plain text. Cloud providers can access your files. Shared passwords leak. There's no real verification that the right person received your data.
+      </p>
+      <p class="sbody rv" data-d="220">
+        CIFER combines two techniques: AES-256 encryption makes the file mathematically unreadable, and steganography bundles it inside a cute nature image. Receivers must verify identity via a time-limited 6-digit OTP sent to their Gmail.
+      </p>
+    </div>
+    <div class="rvr" data-d="100">
+      <canvas id="net-canvas"></canvas>
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- ════════════════ FEATURES ════════════════ -->
+<section id="features">
+  <div class="feat-wrap">
+    <div class="sec-hdr">
+      <p class="tag rv" data-d="0">// Under the Hood</p>
+      <h2 class="sh2 rv" data-d="80">Technical <em>Capabilities</em></h2>
+      <p class="rv" data-d="160">Four cryptographic layers working in concert to protect your most sensitive files.</p>
+    </div>
+    <div class="feat-grid">
+
+      <!-- WIDE: AES -->
+      <div class="fc wide" data-d="0">
+        <div>
+          <div class="fi">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <p class="fn">01 · AES-256-CBC</p>
+          <h3 class="ft">Military-Grade File Encryption</h3>
+          <p class="fd">Uses the Advanced Encryption Standard with a 256-bit key and Cipher Block Chaining mode. A fresh random 16-byte IV is generated for every upload to guarantee uniqueness. Your file becomes completely unreadable without the correct key.</p>
+        </div>
+        <canvas class="fc-canvas" id="enc-canvas"></canvas>
+      </div>
+
+      <!-- STEG -->
+      <div class="fc" data-d="100">
+        <div class="fi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--indigo)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/>
+          </svg>
+        </div>
+        <p class="fn">02 · STEGANOGRAPHY</p>
+        <h3 class="ft">Random Cover Images</h3>
+        <p class="fd">At encryption time, the server randomly selects one of 10 cute nature themes — flowers, animals, landscapes. The encrypted payload hides invisibly in the pixel data. No one can tell the image contains a secret.</p>
+      </div>
+
+      <!-- OTP -->
+      <div class="fc" data-d="180">
+        <div class="fi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+          </svg>
+        </div>
+        <p class="fn">03 · GMAIL OTP</p>
+        <h3 class="ft">Identity Verification</h3>
+        <p class="fd">Users receive a 6-digit OTP via secure SMTP to their Gmail. OTPs are hashed with SHA-256 in the database — never stored in plain text. Time-limited and single-use for maximum security.</p>
+      </div>
+
+      <!-- INTEGRITY -->
+      <div class="fc" data-d="260">
+        <div class="fi">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--violet)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>
+          </svg>
+        </div>
+        <p class="fn">04 · SHA-256 INTEGRITY</p>
+        <h3 class="ft">Tamper Detection</h3>
+        <p class="fd">A SHA-256 hash is computed for every file at upload time. On decryption, the hash is re-computed and compared — any modification, even a single bit, is immediately detected.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- ════════════════ HOW IT WORKS ════════════════ -->
+<section id="how">
+  <div class="how-hdr">
+    <p class="tag rv" data-d="0">// Security Workflow</p>
+    <h2 class="sh2 rv" data-d="80">From plain file to <em>Secure Payload</em></h2>
+    <p class="rv" data-d="160" style="color:var(--muted);font-weight:300;max-width:440px;margin:0 auto;line-height:1.75">
+      Four precise steps. No technical knowledge required.
+    </p>
+  </div>
+
+  <div class="steps">
+    <div class="step" data-d="0">
+      <div class="snum">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <p class="slbl">STEP 01</p><h4 class="stit">Upload File</h4>
+      <p class="sdesc">Select any file up to 50 MB. Add receiver email addresses who map to the file.</p>
+    </div>
+
+    <div class="step" data-d="120">
+      <div class="snum">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </div>
+      <p class="slbl">STEP 02</p><h4 class="stit">Hash &amp; Encrypt</h4>
+      <p class="sdesc">SHA-256 hash generated for tamper detection, then AES-256-CBC encrypts the file.</p>
+    </div>
+
+    <div class="step" data-d="240">
+      <div class="snum">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/>
+        </svg>
+      </div>
+      <p class="slbl">STEP 03</p><h4 class="stit">Hide &amp; Bundle</h4>
+      <p class="sdesc">Encrypted data bundled seamlessly into a random nature cover image via steganography.</p>
+    </div>
+
+    <div class="step" data-d="360">
+      <div class="snum">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+        </svg>
+      </div>
+      <p class="slbl">STEP 04</p><h4 class="stit">OTP Decrypt</h4>
+      <p class="sdesc">Receiver enters the 6-digit OTP sent to their Gmail to unlock the original file securely.</p>
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- ════════════════ DATA VIS ════════════════ -->
+<section id="datavis">
+  <p class="tag rv" data-d="0">// Live Encryption Visualization</p>
+  <h2 class="sh2 rv" data-d="80">Encryption in <em>motion</em></h2>
+  <p class="rv" data-d="160" style="color:var(--muted);font-weight:300;max-width:480px;margin:0 auto;line-height:1.75">
+    Watch data blocks transform as they pass through CIFER's cryptographic pipeline.
+  </p>
+  <canvas id="dv-canvas"></canvas>
+</section>
+
+<div class="div"></div>
+
+<!-- ════════════════ PIPELINE ════════════════ -->
+<section id="pipeline">
+  <div class="pl-hdr">
+    <p class="tag rv" data-d="0">// Encryption Pipeline</p>
+    <h2 class="sh2 rv" data-d="80">Hover each stage to explore</h2>
+  </div>
+  <div style="position:relative;border-radius:14px;overflow:hidden">
+    <div class="pl-stages">
+
+      <div class="pl-stage">
+        <div class="pl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+        <p class="pl-n">STAGE 01</p><p class="pl-t">File Ingestion</p>
+        <p class="pl-d">Raw binary streamed to Flask backend, up to 50 MB</p>
+        <div class="tooltip">Stored temporarily in server memory for hashing & encryption — never persisted to disk unencrypted</div>
+      </div>
+
+      <div class="pl-stage">
+        <div class="pl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+        <p class="pl-n">STAGE 02</p><p class="pl-t">SHA-256 Hash</p>
+        <p class="pl-d">Tamper-detection fingerprint computed before encryption</p>
+        <div class="tooltip">hashlib.sha256(file_bytes) — stored hashed in the database for integrity check on decrypt</div>
+      </div>
+
+      <div class="pl-stage">
+        <div class="pl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--indigo)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+        <p class="pl-n">STAGE 03</p><p class="pl-t">AES-256-CBC</p>
+        <p class="pl-d">256-bit key + fresh random 16-byte IV encrypts the file</p>
+        <div class="tooltip">PyCryptodome AES.new(key, AES.MODE_CBC, iv) — new IV generated per upload for uniqueness</div>
+      </div>
+
+      <div class="pl-stage">
+        <div class="pl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/></svg></div>
+        <p class="pl-n">STAGE 04</p><p class="pl-t">Steganography</p>
+        <p class="pl-d">Ciphertext embedded inside a random nature cover image</p>
+        <div class="tooltip">LSB encoding hides the payload in pixel RGB channels — visually identical to the original image</div>
+      </div>
+
+      <div class="pl-stage">
+        <div class="pl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--violet)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></div>
+        <p class="pl-n">STAGE 05</p><p class="pl-t">OTP Delivery</p>
+        <p class="pl-d">SHA-256 hashed 6-digit OTP emailed to each receiver via Gmail SMTP</p>
+        <div class="tooltip">smtplib sends OTP — only its SHA-256 hash is stored in DB, never the plain text OTP</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="div"></div>
+
+<!-- ════════════════ GLOBE ════════════════ -->
+<section id="globe-sec">
+  <p class="tag rv" data-d="0">// Global Encryption Network</p>
+  <h2 class="sh2 rv" data-d="80">Secure data <em>flows everywhere</em></h2>
+  <canvas id="globe-canvas"></canvas>
+</section>
+
+<div class="div"></div>
+
+<!-- ════════════════ CTA ════════════════ -->
+<section id="cta">
+  <p class="cta-chip rv" data-d="0">// Start Protecting Now</p>
+  <h2 class="cta-h2 rv" data-d="80">Ready to <span>hide your files?</span></h2>
+  <p class="cta-sub rv" data-d="160">Create your free account to begin encrypting files securely.</p>
+  <button class="cta-btn rv" data-d="240" onclick="openAuth('register');rip(event)">
+    Create Free Account
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+    </svg>
+  </button>
+</section>
+
+<!-- ════════════════ FOOTER ════════════════ -->
+<footer class="footer container">
+  <div class="footer-logo">CIFER</div>
+  <div class="footer-copy">© 2026 CIFER · Secure File Encryption Framework</div>
+</footer>
+
+<!-- ═══════════════════════════════════════════
+     AUTH MODAL
+     All backend functions preserved exactly
+     from old code (doLogin, doRegister, etc.)
+═══════════════════════════════════════════ -->
+<div class="auth-bg" id="auth-modal">
+  <div class="auth-card">
+    <button class="auth-x" onclick="closeAuth()">✕</button>
+    <div class="auth-logo"></div>
+    <div class="auth-brand">CIFER</div>
+    <div class="auth-sub" id="auth-subtitle">Welcome Back</div>
+
+    <!-- Main: login / register -->
+    <div id="auth-main-view">
+
+      <!-- LOGIN FORM -->
+      <div id="frm-login">
+        <div class="glass-group">
+          <label>Email address</label>
+          <input class="glass-input" type="email" id="l-email" placeholder="you@example.com"
+                 onkeydown="if(event.key==='Enter')doLogin()"/>
+        </div>
+        <div class="glass-group">
+          <label>Password</label>
+          <input class="glass-input" type="password" id="l-pass" placeholder="••••••••"
+                 onkeydown="if(event.key==='Enter')doLogin()"/>
+        </div>
+        <div style="text-align:left;margin-bottom:1.25rem">
+          <a class="auth-link">Forgot password?</a>
+        </div>
+        <div id="l-err"></div>
+        <button class="glass-btn" onclick="doLogin()">Login</button>
+        <div class="auth-footer">New here? <span onclick="switchAuthTab('register')">Sign Up</span></div>
+      </div>
+
+      <!-- REGISTER FORM -->
+      <div id="frm-reg" style="display:none">
+        <div class="glass-group">
+          <label>Full Name</label>
+          <input class="glass-input" type="text" id="r-name" placeholder="Jane Doe"/>
+        </div>
+        <div class="glass-group">
+          <label>Email address</label>
+          <input class="glass-input" type="email" id="r-email" placeholder="you@example.com"/>
+        </div>
+        <div class="glass-group">
+          <label>Password</label>
+          <input class="glass-input" type="password" id="r-pass" placeholder="Min 8 characters"
+                 onkeydown="if(event.key==='Enter')doRegister()"/>
+        </div>
+        <div id="r-err"></div>
+        <button class="glass-btn" onclick="doRegister()">Create Account</button>
+        <div class="auth-footer">Already a member? <span onclick="switchAuthTab('login')">Log In</span></div>
+      </div>
+    </div>
+
+    <!-- OTP VIEW (login only) -->
+    <div id="auth-otp-view" style="display:none">
+      <div class="glass-group" style="text-align:center;margin-bottom:1.25rem">
+        <label style="color:rgba(200,220,255,0.65);font-size:.9rem;line-height:1.65">
+          Enter the 6-digit OTP sent to your email.
+        </label>
+      </div>
+      <div id="auth-otp-inputs">
+        <input type="text" maxlength="1" inputmode="numeric" oninput="otpNext(this,0)" onkeydown="otpBack(event,0)" class="glass-input"/>
+        <input type="text" maxlength="1" inputmode="numeric" oninput="otpNext(this,1)" onkeydown="otpBack(event,1)" class="glass-input"/>
+        <input type="text" maxlength="1" inputmode="numeric" oninput="otpNext(this,2)" onkeydown="otpBack(event,2)" class="glass-input"/>
+        <input type="text" maxlength="1" inputmode="numeric" oninput="otpNext(this,3)" onkeydown="otpBack(event,3)" class="glass-input"/>
+        <input type="text" maxlength="1" inputmode="numeric" oninput="otpNext(this,4)" onkeydown="otpBack(event,4)" class="glass-input"/>
+        <input type="text" maxlength="1" inputmode="numeric" oninput="otpNext(this,5)" onkeydown="otpBack(event,5)" class="glass-input"/>
+      </div>
+      <div id="otp-err"></div>
+      <button class="glass-btn" onclick="submitLoginOTP()">Verify Identity</button>
+      <div class="auth-footer">Didn't receive it? <span onclick="doLogin()">Resend OTP</span></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     SCRIPTS
+═══════════════════════════════════════════ -->
+<!-- main.js provides: apiFetch(), loadAuthState(), toast() -->
+<script>
+/* ──────────────────────────────────────
+   ANIMATED BACKGROUND: grid + particles
+────────────────────────────────────── */
+(()=>{
+  const c=document.getElementById('bg-canvas'),ctx=c.getContext('2d');
+  let W,H,pts=[],t=0;
+  function resize(){W=c.width=innerWidth;H=c.height=innerHeight}
+  window.addEventListener('resize',resize);resize();
+  class P{
+    constructor(){this.reset()}
+    reset(){this.x=Math.random()*W;this.y=Math.random()*H;this.vx=(Math.random()-.5)*.2;this.vy=(Math.random()-.5)*.2-.04;this.r=Math.random()*1.1+.3;this.a=Math.random()*.35+.08;this.life=Math.random()*350+80;this.age=0}
+    tick(){this.x+=this.vx;this.y+=this.vy;this.age++;if(this.age>this.life||this.y<-5)this.reset()}
+    draw(){const f=Math.min(this.age/40,1)*Math.min((this.life-this.age)/40,1);ctx.globalAlpha=this.a*f;ctx.fillStyle=Math.random()>.8?'#14b8a6':'#3b82f6';ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}
+  }
+  for(let i=0;i<90;i++)pts.push(new P());
+  function frame(){
+    ctx.clearRect(0,0,W,H);
+    const gs=65,ox=(t*.12)%gs,oy=(t*.07)%gs;
+    ctx.strokeStyle='rgba(20,184,166,0.035)';ctx.lineWidth=1;
+    for(let x=-gs+ox;x<W+gs;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}
+    for(let y=-gs+oy;y<H+gs;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
+    pts.forEach(p=>{p.tick();p.draw()});
+    t++;requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ──────────────────────────────────────
+   NETWORK CANVAS
+────────────────────────────────────── */
+(()=>{
+  const c=document.getElementById('net-canvas');if(!c)return;
+  const ctx=c.getContext('2d');let t=0;
+  function resize(){c.width=c.offsetWidth;c.height=c.offsetHeight}
+  window.addEventListener('resize',resize);resize();
+  const W=()=>c.width,H=()=>c.height;
+  const nodes=[
+    {x:.15,y:.5,label:'CLIENT',color:'#14b8a6',r:22},
+    {x:.38,y:.25,label:'SHA-256',color:'#3b82f6',r:18},
+    {x:.38,y:.75,label:'AES-256',color:'#6366f1',r:18},
+    {x:.62,y:.5,label:'CIFER',color:'#14b8a6',r:26},
+    {x:.82,y:.35,label:'STEG',color:'#10b981',r:18},
+    {x:.82,y:.65,label:'OTP',color:'#a78bfa',r:18},
+  ];
+  const edges=[[0,1],[0,2],[1,3],[2,3],[3,4],[3,5]];
+  const pkts=edges.map(([a,b])=>({from:a,to:b,t:Math.random(),spd:.004+Math.random()*.003}));
+  function frame(){
+    ctx.clearRect(0,0,W(),H());
+    const w=W(),h=H();
+    edges.forEach(([a,b])=>{
+      const n1=nodes[a],n2=nodes[b];
+      ctx.strokeStyle='rgba(20,184,166,0.15)';ctx.lineWidth=1;ctx.setLineDash([4,6]);
+      ctx.beginPath();ctx.moveTo(n1.x*w,n1.y*h);ctx.lineTo(n2.x*w,n2.y*h);ctx.stroke();ctx.setLineDash([]);
+    });
+    pkts.forEach(p=>{
+      p.t=(p.t+p.spd)%1;
+      const n1=nodes[p.from],n2=nodes[p.to];
+      const px=n1.x*w+(n2.x*w-n1.x*w)*p.t,py=n1.y*h+(n2.y*h-n1.y*h)*p.t;
+      ctx.beginPath();ctx.arc(px,py,3,0,Math.PI*2);ctx.fillStyle='rgba(20,184,166,0.9)';ctx.fill();
+      ctx.beginPath();ctx.arc(px,py,6,0,Math.PI*2);ctx.fillStyle='rgba(20,184,166,0.15)';ctx.fill();
+    });
+    nodes.forEach(n=>{
+      const x=n.x*w,y=n.y*h,pulse=1+.06*Math.sin(t*.04+n.x*10);
+      const g=ctx.createRadialGradient(x,y,0,x,y,n.r*2.5*pulse);
+      g.addColorStop(0,n.color+'33');g.addColorStop(1,'transparent');
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,n.r*2.5*pulse,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(x,y,n.r,0,Math.PI*2);ctx.fillStyle=n.color+'18';ctx.fill();
+      ctx.strokeStyle=n.color;ctx.lineWidth=1.5;ctx.stroke();
+      ctx.fillStyle=n.color;ctx.font=`bold ${Math.max(9,n.r*.55)}px IBM Plex Mono`;
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(n.label,x,y);
+    });
+    t++;requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ──────────────────────────────────────
+   ENC CANVAS (feature card)
+────────────────────────────────────── */
+(()=>{
+  const c=document.getElementById('enc-canvas');if(!c)return;
+  const ctx=c.getContext('2d');let t=0;
+  function resize(){c.width=c.offsetWidth;c.height=c.offsetHeight}
+  window.addEventListener('resize',resize);resize();
+  const blocks=Array.from({length:12},(_,i)=>({
+    x:(i%6)*.16+.04,y:Math.floor(i/6)*.45+.1,
+    phase:Math.random()*Math.PI*2,
+    chars:Array.from({length:4},()=>Math.floor(Math.random()*256).toString(16).padStart(2,'0').toUpperCase())
+  }));
+  function frame(){
+    ctx.clearRect(0,0,c.width,c.height);
+    const w=c.width,h=c.height;
+    blocks.forEach(b=>{
+      const x=b.x*w,y=b.y*h,glow=.5+.5*Math.sin(t*.03+b.phase);
+      ctx.fillStyle=`rgba(20,184,166,${.03+.04*glow})`;ctx.strokeStyle=`rgba(20,184,166,${.15+.25*glow})`;ctx.lineWidth=1;
+      ctx.beginPath();ctx.roundRect(x,y,w*.13,h*.35,4);ctx.fill();ctx.stroke();
+      if(Math.random()>.93)b.chars=b.chars.map(()=>Math.floor(Math.random()*256).toString(16).padStart(2,'0').toUpperCase());
+      ctx.fillStyle=`rgba(20,184,166,${.4+.4*glow})`;ctx.font=`${Math.max(8,w*.025)}px IBM Plex Mono`;ctx.textAlign='center';
+      b.chars.forEach((ch,i)=>ctx.fillText(ch,x+w*.065,(y+h*.12)+i*(h*.065)));
+      if(b.x<.6){const ax=x+w*.14,ay=y+h*.175;ctx.strokeStyle=`rgba(20,184,166,${.2+.3*glow})`;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(ax+w*.02,ay);ctx.stroke();ctx.beginPath();ctx.moveTo(ax+w*.02-4,ay-3);ctx.lineTo(ax+w*.02,ay);ctx.lineTo(ax+w*.02-4,ay+3);ctx.stroke()}
+    });
+    const lx=((t*1.5)%(w*1.2))-w*.1;ctx.fillStyle='rgba(20,184,166,0.15)';ctx.fillRect(lx,0,2,h);
+    t++;requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ──────────────────────────────────────
+   DATA VIS CANVAS
+────────────────────────────────────── */
+(()=>{
+  const c=document.getElementById('dv-canvas');if(!c)return;
+  const ctx=c.getContext('2d');let t=0;
+  function resize(){c.width=c.offsetWidth;c.height=c.offsetHeight}
+  const ro=new ResizeObserver(resize);ro.observe(c);resize();
+  const cols=8,rows=4,cubes=[];
+  for(let r=0;r<rows;r++)for(let cl=0;cl<cols;cl++)cubes.push({col:cl,row:r,phase:Math.random()*Math.PI*2,enc:Math.random()>.6,val:Math.floor(Math.random()*255).toString(16).padStart(2,'0').toUpperCase()});
+  const drops=[];for(let i=0;i<40;i++)drops.push({x:Math.random(),y:Math.random(),v:.002+Math.random()*.003,char:Math.floor(Math.random()*2)});
+  function frame(){
+    const w=c.width,h=c.height;
+    ctx.fillStyle='rgba(4,8,16,0.12)';ctx.fillRect(0,0,w,h);
+    drops.forEach(d=>{d.y=(d.y+d.v)%1;if(Math.random()>.97)d.char=Math.floor(Math.random()*2);ctx.fillStyle=`rgba(20,184,166,${.1+Math.random()*.15})`;ctx.font=`${Math.max(10,w*.011)}px IBM Plex Mono`;ctx.fillText(String(d.char),d.x*w,d.y*h)});
+    const cw=w/(cols+2),ch=h/(rows+2);
+    cubes.forEach(cube=>{
+      if(Math.random()>.995){cube.enc=!cube.enc;cube.val=Math.floor(Math.random()*255).toString(16).padStart(2,'0').toUpperCase()}
+      const x=(cube.col+1)*cw,y=(cube.row+1)*ch,glow=.4+.6*Math.sin(t*.025+cube.phase),col=cube.enc?'#14b8a6':'#6366f1';
+      const g=ctx.createRadialGradient(x+cw*.5,y+ch*.5,0,x+cw*.5,y+ch*.5,cw*.8);g.addColorStop(0,col+'22');g.addColorStop(1,'transparent');
+      ctx.fillStyle=g;ctx.fillRect(x-cw*.3,y-ch*.3,cw*1.6,ch*1.6);
+      ctx.fillStyle=col+'11';ctx.strokeStyle=col+(cube.enc?'99':'55');ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x,y,cw*.8,ch*.8,3);ctx.fill();ctx.stroke();
+      ctx.fillStyle=col+(cube.enc?'cc':'66');ctx.font=`bold ${Math.max(8,cw*.22)}px IBM Plex Mono`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cube.val,x+cw*.4,y+ch*.4);
+    });
+    t++;requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ──────────────────────────────────────
+   GLOBE CANVAS
+────────────────────────────────────── */
+(()=>{
+  const c=document.getElementById('globe-canvas');if(!c)return;
+  const ctx=c.getContext('2d');let t=0;
+  function resize(){c.width=c.offsetWidth;c.height=c.offsetHeight}
+  const ro=new ResizeObserver(resize);ro.observe(c);resize();
+  function frame(){
+    const w=c.width,h=c.height,cx=w/2,cy=h/2,R=Math.min(w,h)*.36,rot=t*.005;
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='rgba(20,184,166,0.08)';ctx.lineWidth=1;
+    for(let lat=-80;lat<=80;lat+=20){ctx.beginPath();for(let lon=0;lon<=360;lon+=5){const lnr=(lon+rot*180/Math.PI)*Math.PI/180,ltr=lat*Math.PI/180,x3=R*Math.cos(ltr)*Math.cos(lnr),z3=R*Math.cos(ltr)*Math.sin(lnr),y3=R*Math.sin(ltr);if(z3<0)continue;lon===0?ctx.moveTo(cx+x3,cy-y3):ctx.lineTo(cx+x3,cy-y3)}ctx.stroke()}
+    for(let lon=0;lon<360;lon+=20){ctx.beginPath();for(let lat=-90;lat<=90;lat+=5){const lnr=(lon+rot*180/Math.PI)*Math.PI/180,ltr=lat*Math.PI/180,x3=R*Math.cos(ltr)*Math.cos(lnr),z3=R*Math.cos(ltr)*Math.sin(lnr),y3=R*Math.sin(ltr);if(z3<0)continue;lat===-90?ctx.moveTo(cx+x3,cy-y3):ctx.lineTo(cx+x3,cy-y3)}ctx.stroke()}
+    const g=ctx.createRadialGradient(cx-R*.2,cy-R*.2,R*.1,cx,cy,R);g.addColorStop(0,'rgba(20,184,166,0.08)');g.addColorStop(.6,'rgba(99,102,241,0.04)');g.addColorStop(1,'transparent');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(20,184,166,0.2)';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.stroke();
+    const gnodes=[];
+    for(let i=0;i<20;i++){const lon=(i*37+t*.3)%360,lat=(-70+i*7)%140-70,lnr=lon*Math.PI/180,ltr=lat*Math.PI/180,x3=R*Math.cos(ltr)*Math.cos(lnr+rot),z3=R*Math.cos(ltr)*Math.sin(lnr+rot),y3=R*Math.sin(ltr);if(z3<0)continue;gnodes.push({sx:cx+x3,sy:cy-y3});ctx.beginPath();ctx.arc(cx+x3,cy-y3,2.5,0,Math.PI*2);ctx.fillStyle='rgba(20,184,166,0.85)';ctx.fill()}
+    gnodes.forEach((a,ai)=>{gnodes.forEach((b,bi)=>{if(bi<=ai)return;const dx=a.sx-b.sx,dy=a.sy-b.sy,dist=Math.sqrt(dx*dx+dy*dy);if(dist<90){ctx.strokeStyle=`rgba(20,184,166,${(1-dist/90)*.18})`;ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(a.sx,a.sy);ctx.lineTo(b.sx,b.sy);ctx.stroke()}})});
+    gnodes.forEach((a,ai)=>{if(ai%4===Math.floor(t/20)%4){const b=gnodes[(ai+1)%gnodes.length];if(!b)return;const pct=(t*.02)%1;ctx.beginPath();ctx.arc(a.sx+(b.sx-a.sx)*pct,a.sy+(b.sy-a.sy)*pct,3,0,Math.PI*2);ctx.fillStyle='rgba(20,184,166,0.9)';ctx.fill()}});
+    t++;requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ──────────────────────────────────────
+   NAVBAR SCROLL
+────────────────────────────────────── */
+window.addEventListener('scroll',()=>document.getElementById('nav').classList.toggle('scrolled',scrollY>30));
+
+/* ──────────────────────────────────────
+   HERO TEXT ROTATION
+────────────────────────────────────── */
+const phrases=['Data Protection','File Encryption','Steganography','Digital Privacy'];
+let pi=0;const htEl=document.getElementById('ht');
+setInterval(()=>{
+  htEl.style.opacity='0';htEl.style.transform='translateY(12px)';htEl.style.transition='all .45s ease';
+  setTimeout(()=>{pi=(pi+1)%phrases.length;htEl.textContent=phrases[pi];htEl.style.opacity='1';htEl.style.transform='translateY(0)'},450);
+},3200);
+
+/* ──────────────────────────────────────
+   RIPPLE
+────────────────────────────────────── */
+function rip(e){
+  const b=e.currentTarget,r=document.createElement('span');r.classList.add('rip');
+  const rect=b.getBoundingClientRect(),sz=Math.max(rect.width,rect.height);
+  r.style.cssText=`width:${sz}px;height:${sz}px;left:${e.clientX-rect.left-sz/2}px;top:${e.clientY-rect.top-sz/2}px`;
+  b.appendChild(r);setTimeout(()=>r.remove(),700);
+}
+
+/* ──────────────────────────────────────
+   SCROLL REVEAL
+────────────────────────────────────── */
+const io=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(!e.isIntersecting)return;
+    const el=e.target,d=parseInt(el.dataset.d||0);
+    setTimeout(()=>{el.classList.add('u');if(el.classList.contains('fc'))el.classList.add('v')},d);
+    io.unobserve(el);
+  });
+},{threshold:.1});
+document.querySelectorAll('.rv,.rvl,.rvr,.fc').forEach(el=>io.observe(el));
+
+document.querySelectorAll('.step').forEach(s=>{
+  const io2=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(!e.isIntersecting)return;
+      const d=parseInt(s.dataset.d||0);
+      setTimeout(()=>{s.style.opacity='1';s.style.transform='translateY(0)';s.style.transition='all .6s ease'},d);
+      io2.unobserve(s);
+    });
+  },{threshold:.15});
+  io2.observe(s);
+});
+
+/* ──────────────────────────────────────
+   CARD MOUSE GLOW
+────────────────────────────────────── */
+document.querySelectorAll('.fc').forEach(card=>{
+  card.addEventListener('mousemove',e=>{
+    const r=card.getBoundingClientRect();
+    card.style.setProperty('--mx',((e.clientX-r.left)/r.width*100).toFixed(1)+'%');
+    card.style.setProperty('--my',((e.clientY-r.top)/r.height*100).toFixed(1)+'%');
+  });
+});
+
+/* ══════════════════════════════════════
+   AUTH MODAL LOGIC
+   (preserved exactly from old code —
+   relies on apiFetch/loadAuthState/toast
+   from assets/js/main.js)
+══════════════════════════════════════ */
+const authBg=document.getElementById('auth-modal');
+let pendingLoginEmail='';
+
+/* auto-redirect if already logged in */
+async function checkAuth(){
+  try{const d=await loadAuthState();if(d&&d.logged_in)window.location.href='pages/home.html';}catch(e){}
+}
+checkAuth();
+
+function openAuth(type){
+  authBg.classList.add('show');
+  document.getElementById('auth-main-view').style.display='block';
+  document.getElementById('auth-otp-view').style.display='none';
+  document.querySelectorAll('#auth-otp-inputs input').forEach(i=>i.value='');
+  switchAuthTab(type);
+}
+function closeAuth(){authBg.classList.remove('show')}
+/* close on backdrop click */
+authBg.addEventListener('click',e=>{if(e.target===authBg)closeAuth()});
+
+function switchAuthTab(t){
+  document.getElementById('frm-login').style.display=t==='login'?'block':'none';
+  document.getElementById('frm-reg').style.display=t==='register'?'block':'none';
+  document.getElementById('auth-subtitle').textContent=t==='login'?'Welcome Back':'Create Account';
+  showErr('l-err','');showErr('r-err','');
+}
+function showErr(id,msg){
+  document.getElementById(id).innerHTML=msg?`<div class="alert alert-danger">${msg}</div>`:'';
+}
+
+async function doLogin(){
+  const email=document.getElementById('l-email').value.trim();
+  const pass=document.getElementById('l-pass').value;
+  showErr('l-err','');
+  if(!email||!pass){showErr('l-err','Please fill in all fields');return;}
+  try{
+    const res=await apiFetch('/api/login',{method:'POST',body:JSON.stringify({email,password:pass})});
+    const d=await res.json();
+    if(!res.ok){showErr('l-err',d.error||'Login failed');return;}
+    pendingLoginEmail=d.email;
+    document.getElementById('auth-main-view').style.display='none';
+    document.getElementById('auth-otp-view').style.display='block';
+    toast('OTP sent to your email','success');
+  }catch(e){showErr('l-err','Cannot connect to server.');}
+}
+async function submitLoginOTP(){
+  const inputs = document.querySelectorAll('#auth-otp-inputs input');
+  const otp = Array.from(inputs).map(i => i.value).join('');
+
+  if (otp.length < 6) {
+    showErr('otp-err','Enter all 6 digits');
+    return;
+  }
+
+  showErr('otp-err','');
+
+  try{
+    const res = await apiFetch('/api/verify-login',{
+      method:'POST',
+      body: JSON.stringify({
+        email: pendingLoginEmail,
+        otp: otp
+      })
+    });
+
+    const d = await res.json();
+
+    if(!res.ok || !d.success){
+      showErr('otp-err', d.error || 'Verification failed');
+
+      inputs.forEach(i=>{
+        i.value='';
+        i.classList.add('error');
+        setTimeout(()=>i.classList.remove('error'),700);
+      });
+
+      inputs[0].focus();
+      return;
+    }
+
+    closeAuth();
+    toast('Welcome back, ' + d.name + '!', 'success');
+
+    setTimeout(()=>{
+    window.location.replace('pages/home.html');
+},600);
+
+  }catch(e){
+    showErr('otp-err','Server error.');
+  }
+}
+
+async function doRegister(){
+  const name=document.getElementById('r-name').value.trim();
+  const email=document.getElementById('r-email').value.trim();
+  const pass=document.getElementById('r-pass').value;
+  showErr('r-err','');
+  if(!name||!email||!pass){showErr('r-err','Please fill in all fields');return;}
+  if(pass.length<8){showErr('r-err','Password must be at least 8 characters');return;}
+  try{
+    const res=await apiFetch('/api/register',{method:'POST',body:JSON.stringify({name,email,password:pass})});
+    const d=await res.json();
+    if(!res.ok){showErr('r-err',d.error||'Registration failed');return;}
+    closeAuth();
+    toast('Account created! Welcome, '+d.name,'success');
+    setTimeout(()=>window.location.href='pages/home.html',700);
+  }catch(e){showErr('r-err','Cannot connect to server.');}
+}
+
+/* OTP input helpers */
+function otpNext(el,idx){
+  el.value=el.value.replace(/\D/g,'');
+  const inputs=document.querySelectorAll('#auth-otp-inputs input');
+  if(el.value&&idx<5)inputs[idx+1].focus();
+  if(Array.from(inputs).every(i=>i.value))submitLoginOTP();
+}
+function otpBack(e,idx){
+  if(e.key==='Backspace'){
+    const inputs=document.querySelectorAll('#auth-otp-inputs input');
+    if(!inputs[idx].value&&idx>0){inputs[idx-1].focus();inputs[idx-1].value=''}
+  }
+}
+
+(async () => {
+  const res = await fetch("http://localhost:5000/api/me", {
+    credentials: "include"
+  });
+
+  const d = await res.json();
+
+  if(d.logged_in){
+    window.location.replace("pages/home.html");
+  }
+})();
+</script>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>
